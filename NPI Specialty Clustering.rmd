@@ -152,8 +152,14 @@ results$rotation
 options(scipen=999)
 
 #calculate total variance explained by each principal component
+pc_variances  <- results$sdev^2 / sum(results$sdev^2)
 results$sdev^2 / sum(results$sdev^2)
+pc_variances <- round( PC_Variations , 1)
+pc_variances
+
 ```
+
+
 
 
 ```{r}
@@ -193,6 +199,8 @@ pc_dt
 
 ggplot(pc_dt, aes(x=PC1, y=PC2)) +
   geom_point() +
+  xlab(paste("PC1 : ", pc_variances[1], "%", sep="")) +
+  ylab(paste("PC2 : ", pc_variances[2], "%", sep="")) +
   geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5) + theme_bw()
 ```
 
