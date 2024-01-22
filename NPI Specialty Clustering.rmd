@@ -26,7 +26,8 @@ library(caTools)
 library(readr)
 library(data.table)
 library(openxlsx)
-
+library(factoextra)
+library(cluster)
 
 
 ```
@@ -154,7 +155,7 @@ options(scipen=999)
 #calculate total variance explained by each principal component
 pc_variances  <- results$sdev^2 / sum(results$sdev^2)
 results$sdev^2 / sum(results$sdev^2)
-pc_variances <- round( PC_Variations , 1)
+pc_variances <- round( pc_variances , 1)
 pc_variances
 
 ```
@@ -173,6 +174,10 @@ results$x
 
 ```{r}
 class(results$x)
+
+df <- as.data.frame(results$x[ , 1:2])
+class(df)
+df
 
 biplot(results, scale = 0 ) 
 ```
@@ -203,4 +208,33 @@ ggplot(pc_dt, aes(x=PC1, y=PC2)) +
   ylab(paste("PC2 : ", pc_variances[2], "%", sep="")) +
   geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5) + theme_bw()
 ```
+
+
+# kmeans clustering
+
+
+```{r}
+fviz_nbclust(pc_dt[ , 2:3], kmeans, method = "wss")
+
+```
+
+```{r}
+
+#make this example reproducible
+set.seed(1)
+
+#perform k-means clustering with k = 4 clusters
+km <- kmeans(pc_dt[ , 2:3], centers = 4, nstart = 25)
+
+#view results
+km
+
+
+
+```
+```{r}
+fviz_cluster(km, data = df)
+#fviz_cluster(km, data = df ,,geom="point")  + geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5)
+```
+
 
