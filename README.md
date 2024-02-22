@@ -33,7 +33,7 @@ This  synthetic dataset gives information about the doctors and their prescripti
 
 
 ## Cluster Graph
-![Alt text](PCA%20with%20kmeans%20NPI%20Specialty.png)
+![Alt text](PCA%20with%20kmeans%20NPI%20Specialty.PNG)
 
 
 
