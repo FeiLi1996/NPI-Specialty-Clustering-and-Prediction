@@ -2,10 +2,9 @@
 # NPI Specialty Clustering with PCA and K-Mean
 ## About NPI Specialty Clustering
 
+Knowing a NPI's Specialty can give lots of information. For instance, we would expect a cardiologist to have a different prescribing behavior than a psychiatrist.Knowing how  NPIs act based on their specialties can be useful for many reasons. Some reasons are fraud detection and marketing campaigns. This can be helpful in fraud detection because if  a cardiologist is prescribing high percentages of adderall or meth, then we can predict that this person is probably a fraud. If we are promoting a weight loss drug, we would want to target primary care specialties like family medicine, etc . We wouldn't want to target pulmonologist and urologist as their prescribing behaviors are unlikely related to weight loss.
 
-Knowing a NPI Specialty can give lots of information. For instance, we would expect a cardiologist to have a different prescribing behavior than a psychiatrist.Knowing how  NPIs act based on their specialties can be useful for many reasons. Some reasons are fraud detection and marketing campaigns. This can be helpful in fraud detection because if  a cardiologist is prescribing high percentages of adderall or meth, then we can predict that this person is probably a fraud. If we are promoting a weight loss drug, we would want to target primary care specialties like family medicine, etc . We wouldn't want to target pulmonologist and urologist as their prescribing behaviors are unlikely related to weight loss.
-
-However, sometimes the specialty is unknown or it is known but not very helpful. For example, Nurse Practioner(NP) and Physician assistant(PA) often specialize in a particular field like pain , cardiac stuff or pediatric. Unfortunately healthcare data don't  really track their specialties so they just list them as NP or PA. This is an issue because if a NP prescribes lots of opioid, should we flag the NPI as guaranteed fraud? What if the NP works in a surgical clinic? Furthermore,  if NPs/PAs make up 50% of a local clinical dataset, should we advertise our weight loss medication  to them? What if the local clinic only focus on addiction therapy? Then the marketing team would lose lots of money because the investment would be wasted as addiction therapy isn't related to weight loss.
+However, sometimes the specialty is unknown or it is known but not very helpful. For example, Nurse Practioner(NP) and Physician assistant(PA) often specialize in a particular field like pain , cardiac stuff or pediatric. Unfortunately healthcare data don't  really track their specialties so they just list them as NP or PA. This is an issue because if a NP prescribes lots of opioid, should we flag the NPI as guaranteed fraud? What if the NP works in a surgical clinic? Furthermore,  if NPs/PAs make up 50% of a local clinical dataset, should we advertise our weight loss medication  to them? What if the local clinic only focuses on addiction therapy? Then the marketing team would lose lots of money because the investment would be wasted as addiction therapy isn't related to weight loss.
 
 
 ## About the Data set
@@ -26,7 +25,7 @@ This  synthetic dataset gives information about the doctors and their prescripti
       +	__Variable Type__: character
       +	__Possible values__:  'cardiologist' , 'general practice', 'nurse practioner',etc
   +	therapeutic_labeling 
-      +	__Meaning__: the clinical catergory of the prescription drug
+      +	__Meaning__: the clinical category of the prescription drug
       +	__Variable Type__: character
       +	__Possible values__:  'ocular' , 'bronchodilator', 'cardiology',etc      
 
@@ -40,16 +39,8 @@ This  synthetic dataset gives information about the doctors and their prescripti
 6. Conclusion
 
 
-
-
-
-
-
-
-
-
 # 1. Import Packages
-```{r}
+```{r ,warning=FALSE ,error=FALSE ,message=FALSE ,results='hide'}
 
 library(tidyverse)
 library(caTools)
@@ -58,47 +49,85 @@ library(data.table)
 library(openxlsx)
 library(factoextra)
 library(cluster)
-
-
 ```
+utility function
+```{r}
+
+factorize_str <- function (dt){
+  #Purpose:Temporary converts a datatable's character datatypes into factor. This way when summarize function is used, it lists out the counts of the              categorical variables
+  #input:(datatable)
+  #output:(datatable) returns a copy of the datatable but with all the character datatypes as factors
+  
+  #Making a copy to not affect the original datatable
+  dt_copy <- copy(dt)
+
+  for (col_name in colnames(dt_copy)){
+    if (is.character(dt_copy[[col_name]])){
+        set(dt_copy, j = col_name, value = as.factor(dt_copy[[col_name]]))
+    }
+  }
+  dt_copy
+}
+```
+
+
+
+
+
+
+
 
 
 # 2.Load data and  EDA
 
 ```{r}
 
-
+#Read in custom dataset
 df<-openxlsx::read.xlsx('dataset.xlsx')
+
+#Convert to datatable
 datatable <- as.data.table(df)
 datatable
 
+```
 
 
 
-doctor_specialty_mapping <- unique(datatable[ , .(doctor_id,specialty)] , by=c('doctor_id','specialty'))
-doctor_specialty_mapping
-
-
-doctor_specialty_mapping [, custom_specialty := paste(specialty,doctor_id)] 
-doctor_specialty_mapping [,specialty:= NULL]
-doctor_specialty_mapping
+```{r}
+#summary statistics of the raw data
+summary(factorize_str(datatable))
 
 ```
+insight:Mostly cardiologist. Some specialties are unknown. Only four unique values for  'therapeutic_labeling' of the prescription
+
+
+
+
+
+
+```{r}
+#Check if there are duplicate prescriptions.There should be only 1 unique prescription ID for each row.
+#Should return nothing if all prescriptions are unique
+datatable[ , .N , by='rx_id'][N>1]
+```
+
+
 
 ```{r}
 datatable_2 <- copy(datatable)
 
+#Select relevant columns
 datatable_2 <- datatable_2 [ , .(doctor_id,specialty,therapeutic_labeling)]
 
+
+#Aggregate at  doctor and therapeutic class level
 datatable_2_agg <- datatable_2[ , .N , by =c('doctor_id','therapeutic_labeling')]
 datatable_2_agg
 
 
-#datatable_2_agg[ total_rx:=sum(N) , by='specialty']
-
- datatable_2_agg[, total_rx := sum(N), by = 'doctor_id']
- 
- datatable_2_agg[ , rx_percentage := round((N/total_rx),1)]
+#Create new columns to see proportions of drug class prescribed by each doctor
+datatable_2_agg[, total_rx := sum(N), by = 'doctor_id']
+datatable_2_agg[ , rx_percentage := round((N/total_rx),1)]
  
  
  datatable_2_agg
@@ -108,93 +137,102 @@ datatable_2_agg
 
 # 3. Preparing ML models
 ```{r}
-
+#Pivot table to get data at doctor level
+  #The possible therapeutic class would be the columns
 datatable_2_pivot <- pivot_wider(datatable_2_agg, id_cols = doctor_id, names_from = therapeutic_labeling, values_from = rx_percentage)
 datatable_2_pivot
 ```
 
 ```{r}
-
+#Attempting to fill all columns' Null values as 0 if the doctor wasn't involved with those therapeutic classes
 index_column_length <- length(colnames(datatable_2_pivot))
 setnafill(datatable_2_pivot[ ,2:index_column_length], fill=0)
+
 datatable_2_pivot
 ```
 
 ```{r}
 
+#Create a table unique at doctor_id and specialty level
+doctor_specialty_mapping <- unique(datatable[ , .(doctor_id,specialty)] , by=c('doctor_id','specialty'))
+doctor_specialty_mapping
 
-datatable_3_pivot <- merge( datatable_2_pivot, doctor_specialty_mapping , on='doctor_id')
-
-
-
-
-
-datatable_3_pivot
-
-
-datatable_3_pivot.index= datatable_3_pivot$custom_specialty
-datatable_3_pivot.index
-
-
-datatable_4_pivot <- datatable_3_pivot %>% select(-c(doctor_id, custom_specialty))
-row.names(datatable_4_pivot) <- datatable_3_pivot$custom_specialty
-
+#Create a new column that combines the doctor_id and specialty
+  #This new column will be used to label the points on the PCA graph later on. Without this label, we won't know if cardiologist point is referring to doctor_id 1 or doctor_id 2
+doctor_specialty_mapping [, custom_specialty := paste(specialty,doctor_id)] 
+#Delete the other column as it isn't needed
+doctor_specialty_mapping [,specialty:= NULL]
+doctor_specialty_mapping
   
+```
+
+```{r}
+
+#Bring in the specialty back to the pivot table
+df_3_pivot <- merge( datatable_2_pivot, doctor_specialty_mapping , on='doctor_id')
+df_3_pivot
+
+#The prcomp() function doesn't work on datatable so we are working with dataframes now
+df_4_pivot <- df_3_pivot %>%
+              select(-c(doctor_id, custom_specialty))
+
+#Set the rowname to be the 'custom_specialty' so that the value is conserved when doing PCA
+row.names(df_4_pivot) <- df_3_pivot$custom_specialty
+df_4_pivot
+
 ```
 
 
 
-```{r}
-#calculate principal components
-results <- prcomp(datatable_4_pivot, scale = TRUE)
 
-#reverse the signs
+```{r}
+
+#calculate principal components
+  #We don't need to scale since they are all the columns are in the same number format so we set scale to False
+results <- prcomp(df_4_pivot, scale = F)
+
+#In R, eigenvectors point in the negative direction by default, so we’ll multiply by -1 to reverse the signs.
 results$rotation <- -1*results$rotation
 
 #display principal components
 results$rotation
 
 ```
+insight:We see that PC1 is heavily influenced by bronchodilator . PC2 is influenced by cardiology and ocular
+
+
+
 
 ```{r}
-#Turn off scientific notation so we can view the decimals
-options(scipen=999)
 
 #calculate total variance explained by each principal component
 pc_variances  <- results$sdev^2 / sum(results$sdev^2)
-results$sdev^2 / sum(results$sdev^2)
-pc_variances <- round( pc_variances , 1)
+
+pc_variances <- round( pc_variances , 3)
 pc_variances
 
 ```
-
+insight: The first two Principal Components  capture 92%(0.567 + 0.357) of the total variance in the data set
 
 
 
 ```{r}
-
-
 #reverse the signs of the scores
 results$x <- -1*results$x
 
 results$x
 ```
 
-```{r}
-class(results$x)
 
-df <- as.data.frame(results$x[ , 1:2])
-class(df)
-df
+
+```{r}
 
 biplot(results, scale = 0 ) 
 ```
+insight: Make sense that cardiologists are closer to the variable cardiology and pulmonologists are closer to variable bronchodilator
+insight: We can see that doctor unknown 1 is closer to doctor optometry 7 and 8 then other doctors. This means that even though we don't know the specialty of doctor 1, we know his/her prescription behaviors involve the eye.
+insight: Likewese, we can assume nurse practioner is involved with drugs related to the heart. 
 
-
-```{r}
-
-biplot(results, expand=10, xlim=c(0.0, 0.0), ylim=c(-0.1, 0.1))
-```
 
 
 
@@ -202,7 +240,7 @@ biplot(results, expand=10, xlim=c(0.0, 0.0), ylim=c(-0.1, 0.1))
 ```{r}
 
 pc_dt <- as.data.table(results$x)
-pc_dt <- cbind( datatable_3_pivot$custom_specialty,pc_dt[,.(PC1,PC2)])
+pc_dt <- cbind( df_3_pivot$custom_specialty,pc_dt[,.(PC1,PC2)])
 pc_dt
 ```
 
@@ -214,17 +252,24 @@ ggplot(pc_dt, aes(x=PC1, y=PC2)) +
   geom_point() +
   xlab(paste("PC1 : ", pc_variances[1], "%", sep="")) +
   ylab(paste("PC2 : ", pc_variances[2], "%", sep="")) +
-  geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5) + theme_bw()
+  geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5) + theme_bw() +
+  ggtitle(label='NPI Specialty Rx Behavior Cluster') +
+  theme(plot.title = element_text(hjust = 0.5))
+  
 ```
 
 
 # kmeans clustering
 
-
 ```{r}
+#Using the elbow method to find ideal # of clusters
 fviz_nbclust(pc_dt[ , 2:3], kmeans, method = "wss")
 
 ```
+
+insight: We see an elbow bend after 4 clusters
+
+
 
 ```{r}
 
@@ -236,13 +281,27 @@ km <- kmeans(pc_dt[ , 2:3], centers = 4, nstart = 25)
 
 #view results
 km
-
-
-
 ```
+
+
+
+
 ```{r}
-fviz_cluster(km, data = df)
-#fviz_cluster(km, data = df ,,geom="point")  + geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5)
+# Preparation data for kmeans visualization
+df <- as.data.frame(results$x[ , 1:2])
+class(df)
+df
 ```
 
+
+
+```{r}
+#Visual the 2D graph with kmeans clustering
+fviz_cluster(km, data = df) + 
+  ggtitle(label='NPI Specialty Rx Behavior Cluster') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+# 6. Conclusion
+
+Using PCA, we were able to visualize Doctors' prescription behavior in a 2D graph. Using k-means , we can cluster doctors with similiar prescribing behavior together. This is super helpful when a doctor's specialty is unknown or vague like nurse practioner. For example: In the graph above , we can see that nurse practioner 5 is clustered(purple) near the cardiologists. This means that nurse practioner 5 must be involved with drugs related to the heart. If we were doing a campaign to promote a specialty drug related to the heart, we can safely assume that it is great to target this nurse practioner 5. Without PCA and kmeans, we wouldn't be confident to target a clinician with specialty title nurse practioner because it is a vague title.
 
