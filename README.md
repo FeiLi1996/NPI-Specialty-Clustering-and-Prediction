@@ -36,5 +36,5 @@ This  synthetic dataset gives information about the doctors and their prescripti
 ![Alt text](PCA%20with%20kmeans%20NPI%20Specialty.PNG)
 
 
-
 ## Conclusion
+Using PCA, we were able to visualize Doctors' prescription behavior in a 2D graph. Using k-means , we can cluster doctors with similiar prescribing behavior together. This is super helpful when a doctor's specialty is unknown or vague like nurse practioner. For example: In the graph above , we can see that nurse practioner 5 is clustered(purple) near the cardiologists. This means that nurse practioner 5 must be involved with drugs related to the heart. If we were doing a campaign to promote a specialty drug related to the heart, we can safely assume that it is great to target this nurse practioner 5. Without PCA and kmeans, we wouldn't be as confident to target a clinician with specialty title nurse practioner because it is a vague title. Without PCA and kmeans, it is still possible to understand doctors prescription but this would require a person to manually check each doctors prescription and this could take a very long time.
