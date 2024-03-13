@@ -1,6 +1,6 @@
 
-# NPI Specialty Clustering with PCA and K-Mean
-## About NPI Specialty Clustering
+# NPI Specialty Clustering with PCA and K-Means
+## About NPI Specialty 
 
 Knowing a NPI's Specialty can give lots of information. For instance, we would expect a cardiologist to have a different prescribing behavior than a psychiatrist.Knowing how  NPIs act based on their specialties can be useful for many reasons. Some reasons are fraud detection and marketing campaigns. This can be helpful in fraud detection because if  a cardiologist is prescribing high percentages of adderall or meth, then we can predict that this person is probably a fraud. If we are promoting a weight loss drug, we would want to target primary care specialties like family medicine, etc . We wouldn't want to target pulmonologist and urologist as their prescribing behaviors are unlikely related to weight loss.
 
@@ -9,7 +9,7 @@ However, sometimes the specialty is unknown or it is known but not very helpful.
 
 ## About the Data set
 
-This  synthetic dataset gives information about the doctors and their prescriptions. There are only 4 columns. We will use it to visualize their prescription behaviors in a 2D graph via PCA. Then we will try to cluster similiar doctors with or without their reliable specialty titles based on their prescription behaviors with kmeans.
+This  synthetic data set gives information about  certain doctors and their prescriptions. There are only 4 columns. We will use it to visualize their prescription behaviors in a 2D graph with a dimensionality  reduction technique via  PCA(Principal Component Analysis) . Then we will try to cluster similar doctors with or without their reliable specialty titles based on their prescription behaviors with k-means.
 
 * Attribute Information
   +	rx_id 
@@ -34,8 +34,8 @@ This  synthetic dataset gives information about the doctors and their prescripti
 1. Import Packages
 2. Data load and EDA
 3. Preparing ML models
-4. Models evaluation
-5. Model in action and interpretation
+4. Model in action 
+5. Model interpretation
 6. Conclusion
 
 
@@ -54,7 +54,7 @@ utility function
 ```{r}
 
 factorize_str <- function (dt){
-  #Purpose:Temporary converts a datatable's character datatypes into factor. This way when summarize function is used, it lists out the counts of the              categorical variables
+  #Purpose:Temporary converts a datatable's character datatypes into factor. This way when summarize function is used, it lists out the counts of the categorical variables
   #input:(datatable)
   #output:(datatable) returns a copy of the datatable but with all the character datatypes as factors
   
@@ -87,7 +87,7 @@ df<-openxlsx::read.xlsx('dataset.xlsx')
 
 #Convert to datatable
 datatable <- as.data.table(df)
-datatable
+head(datatable)
 
 ```
 
@@ -99,10 +99,6 @@ summary(factorize_str(datatable))
 
 ```
 insight:Mostly cardiologist. Some specialties are unknown. Only four unique values for  'therapeutic_labeling' of the prescription
-
-
-
-
 
 
 ```{r}
@@ -130,7 +126,7 @@ datatable_2_agg[, total_rx := sum(N), by = 'doctor_id']
 datatable_2_agg[ , rx_percentage := round((N/total_rx),1)]
  
  
- datatable_2_agg
+ head(datatable_2_agg)
 ```
 
 
@@ -140,7 +136,7 @@ datatable_2_agg[ , rx_percentage := round((N/total_rx),1)]
 #Pivot table to get data at doctor level
   #The possible therapeutic class would be the columns
 datatable_2_pivot <- pivot_wider(datatable_2_agg, id_cols = doctor_id, names_from = therapeutic_labeling, values_from = rx_percentage)
-datatable_2_pivot
+head(datatable_2_pivot)
 ```
 
 ```{r}
@@ -148,21 +144,21 @@ datatable_2_pivot
 index_column_length <- length(colnames(datatable_2_pivot))
 setnafill(datatable_2_pivot[ ,2:index_column_length], fill=0)
 
-datatable_2_pivot
+head(datatable_2_pivot)
 ```
 
 ```{r}
 
 #Create a table unique at doctor_id and specialty level
 doctor_specialty_mapping <- unique(datatable[ , .(doctor_id,specialty)] , by=c('doctor_id','specialty'))
-doctor_specialty_mapping
+head(doctor_specialty_mapping)
 
 #Create a new column that combines the doctor_id and specialty
   #This new column will be used to label the points on the PCA graph later on. Without this label, we won't know if cardiologist point is referring to doctor_id 1 or doctor_id 2
 doctor_specialty_mapping [, custom_specialty := paste(specialty,doctor_id)] 
 #Delete the other column as it isn't needed
 doctor_specialty_mapping [,specialty:= NULL]
-doctor_specialty_mapping
+head(doctor_specialty_mapping)
   
 ```
 
@@ -178,17 +174,17 @@ df_4_pivot <- df_3_pivot %>%
 
 #Set the rowname to be the 'custom_specialty' so that the value is conserved when doing PCA
 row.names(df_4_pivot) <- df_3_pivot$custom_specialty
-df_4_pivot
+head(df_4_pivot)
 
 ```
 
 
 
-
+# 4. Model in action
 ```{r}
 
 #calculate principal components
-  #We don't need to scale since they are all the columns are in the same number format so we set scale to False
+  #We don't need to scale since  are all the columns are in the same number format so we set scale to False
 results <- prcomp(df_4_pivot, scale = F)
 
 #In R, eigenvectors point in the negative direction by default, so we’ll multiply by -1 to reverse the signs.
@@ -198,7 +194,7 @@ results$rotation <- -1*results$rotation
 results$rotation
 
 ```
-insight:We see that PC1 is heavily influenced by bronchodilator . PC2 is influenced by cardiology and ocular
+insight:We see that PC1 is heavily influenced by bronchodilator. PC2 is influenced by cardiology and ocular
 
 
 
@@ -212,7 +208,7 @@ pc_variances <- round( pc_variances , 3)
 pc_variances
 
 ```
-insight: The first two Principal Components  capture 92%(0.567 + 0.357) of the total variance in the data set
+insight: The first two Principal Components  capture 95%(0.573 + 0.374) of the total variance in the data set
 
 
 
@@ -224,21 +220,20 @@ results$x
 ```
 
 
-
+# 5. Model Evaluation
 ```{r}
 
 biplot(results, scale = 0 ) 
+
+# insight: Make sense that cardiologists are closer to the variable cardiology and pulmonologists are closer to variable bronchodilator
+# insight: We can see that doctor unknown 1 is closer to doctor optometry 7 and 8 then other doctors. This means that even though we don't know the specialty of doctor 1, we know his/her prescription behaviors involve the eye.
+# insight: Likewise, we can assume nurse practitioner 5 is involved with drugs related to the heart. 
 ```
-insight: Make sense that cardiologists are closer to the variable cardiology and pulmonologists are closer to variable bronchodilator
-insight: We can see that doctor unknown 1 is closer to doctor optometry 7 and 8 then other doctors. This means that even though we don't know the specialty of doctor 1, we know his/her prescription behaviors involve the eye.
-insight: Likewese, we can assume nurse practioner is involved with drugs related to the heart. 
-
-
 
 
 
 ```{r}
-
+#Get PC1 and PC2 for each doctor
 pc_dt <- as.data.table(results$x)
 pc_dt <- cbind( df_3_pivot$custom_specialty,pc_dt[,.(PC1,PC2)])
 pc_dt
@@ -250,8 +245,8 @@ pc_dt
 
 ggplot(pc_dt, aes(x=PC1, y=PC2)) +
   geom_point() +
-  xlab(paste("PC1 : ", pc_variances[1], "%", sep="")) +
-  ylab(paste("PC2 : ", pc_variances[2], "%", sep="")) +
+  xlab(paste("PC1 : ", pc_variances[1]*100, "%", sep="")) +
+  ylab(paste("PC2 : ", pc_variances[2]*100, "%", sep="")) +
   geom_text(label=pc_dt$V1 ,angle = 10 , vjust=1 ,size=3.5) + theme_bw() +
   ggtitle(label='NPI Specialty Rx Behavior Cluster') +
   theme(plot.title = element_text(hjust = 0.5))
@@ -259,7 +254,7 @@ ggplot(pc_dt, aes(x=PC1, y=PC2)) +
 ```
 
 
-# kmeans clustering
+## kmeans clustering
 
 ```{r}
 #Using the elbow method to find ideal # of clusters
@@ -289,7 +284,7 @@ km
 ```{r}
 # Preparation data for kmeans visualization
 df <- as.data.frame(results$x[ , 1:2])
-class(df)
+
 df
 ```
 
@@ -301,7 +296,10 @@ fviz_cluster(km, data = df) +
   ggtitle(label='NPI Specialty Rx Behavior Cluster') +
   theme(plot.title = element_text(hjust = 0.5))
 ```
+
 # 6. Conclusion
 
-Using PCA, we were able to visualize Doctors' prescription behavior in a 2D graph. Using k-means , we can cluster doctors with similiar prescribing behavior together. This is super helpful when a doctor's specialty is unknown or vague like nurse practioner. For example: In the graph above , we can see that nurse practioner 5 is clustered(purple) near the cardiologists. This means that nurse practioner 5 must be involved with drugs related to the heart. If we were doing a campaign to promote a specialty drug related to the heart, we can safely assume that it is great to target this nurse practioner 5. Without PCA and kmeans, we wouldn't be as confident to target a clinician with specialty title nurse practioner because it is a vague title. Without PCA and kmeans, it is still possible to understand doctors prescription but this would require a person to manually check each doctors prescription and this could take a very long time.
+
+
+Using PCA, we were able to visualize doctors' prescription behavior in a 2D graph. Using k-means , we can cluster doctors with similar prescribing behavior together. This is super helpful when a doctor's specialty is unknown or vague like nurse practitioner. For example: In the graph above, we can see that nurse practitioner 5 is clustered(purple) near the cardiologists. This means that nurse practitioner 5 must be involved with drugs related to the heart. If we were doing a campaign to promote a specialty drug related to the heart, we can assume that it is great to target this nurse practitioner 5. Without PCA and k-means, we wouldn't be as confident to target a clinician with specialty title nurse practitioner because it is a vague title. Without PCA and k-means, it is still possible to understand doctors prescription behavior but this would require a person to manually check each doctors' prescription and this could take a very long time.
 
